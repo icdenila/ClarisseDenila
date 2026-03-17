@@ -1,73 +1,8 @@
-from flask import Flask, jsonify, request, render_template_string, redirect, url_for
-from flask_sqlalchemy import SQLAlchemy
-import os
-
-app = Flask(__name__)
-
-# --- DATABASE CONFIGURATION ---
-basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'students.db')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-db = SQLAlchemy(app)
-
-# --- DATABASE MODEL ---
-class Student(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    grade = db.Column(db.Integer, nullable=False)
-    section = db.Column(db.String(50), nullable=False)
-
-with app.app_context():
-    db.create_all()
-
-# --- BASE LAYOUT (Shared UI) ---
-BASE_HTML = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NISU Student Portal</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <style>
-        body { background-color: #f4f7f6; font-family: 'Inter', sans-serif; }
-        .navbar { background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); border-bottom: 3px solid #ffc107; }
-        .card { border: none; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); transition: 0.3s; }
-        .btn-primary { background: #1e3c72; border: none; }
-        .btn-primary:hover { background: #2a5298; }
-        .table-hover tbody tr:hover { background-color: #f1f4f9; }
-        .badge-pass { background-color: #d1e7dd; color: #0f5132; }
-        .badge-fail { background-color: #f8d7da; color: #842029; }
-    </style>
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-dark sticky-top shadow-sm">
-        <div class="container">
-            <a class="navbar-brand fw-bold" href="/"><i class="bi bi-mortarboard-fill me-2"></i>NISU Portal</a>
-            <div class="navbar-nav ms-auto">
-                <a class="nav-link" href="/students">Records</a>
-                <a class="nav-link" href="/add_student_form">Register</a>
-                <a class="nav-link btn btn-warning btn-sm text-dark ms-lg-3 px-3" href="/summary">Analytics</a>
-            </div>
-        </div>
-    </nav>
-    <div class="container mt-4">
-        {% block content %}{% endblock %}
-    </div>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
-"""
-
-# --- ROUTES ---
+# --- UPDATED ROUTES ---
 
 @app.route('/')
 def home():
     content = """
-    {% extends "base" %}
-    {% block content %}
     <div class="row align-items-center py-5">
         <div class="col-lg-6">
             <h1 class="display-4 fw-bold text-dark">Student Management <span class="text-primary">Simplified.</span></h1>
@@ -85,7 +20,6 @@ def home():
             </div>
         </div>
     </div>
-    {% endblock %}
     """
     return render_template_string(BASE_HTML.replace('{% block content %}{% endblock %}', content))
 
@@ -93,8 +27,6 @@ def home():
 def list_students():
     all_students = Student.query.all()
     content = """
-    {% extends "base" %}
-    {% block content %}
     <div class="card p-4 mb-4">
         <div class="row align-items-center mb-4">
             <div class="col-md-4">
@@ -107,7 +39,6 @@ def list_students():
                 </div>
             </div>
         </div>
-
         <div class="table-responsive">
             <table class="table table-hover align-middle" id="studentTable">
                 <thead class="table-light">
@@ -143,33 +74,25 @@ def list_students():
             </table>
         </div>
     </div>
-
     <script>
     function filterTable() {
         let input = document.getElementById("searchInput");
         let filter = input.value.toUpperCase();
         let table = document.getElementById("studentTable");
         let tr = table.getElementsByTagName("tr");
-
         for (let i = 1; i < tr.length; i++) {
             let rowText = tr[i].textContent || tr[i].innerText;
-            if (rowText.toUpperCase().indexOf(filter) > -1) {
-                tr[i].style.display = "";
-            } else {
-                tr[i].style.display = "none";
-            }
+            if (rowText.toUpperCase().indexOf(filter) > -1) { tr[i].style.display = ""; } 
+            else { tr[i].style.display = "none"; }
         }
     }
     </script>
-    {% endblock %}
     """
     return render_template_string(BASE_HTML.replace('{% block content %}{% endblock %}', content), students=all_students)
 
 @app.route('/add_student_form')
 def add_student_form():
     content = """
-    {% extends "base" %}
-    {% block content %}
     <div class="row justify-content-center">
         <div class="col-md-6">
             <div class="card p-4">
@@ -200,42 +123,5 @@ def add_student_form():
             </div>
         </div>
     </div>
-    {% endblock %}
     """
     return render_template_string(BASE_HTML.replace('{% block content %}{% endblock %}', content))
-
-@app.route('/add_student', methods=['POST'])
-def add_student():
-    new_student = Student(
-        name=request.form.get("name"),
-        grade=int(request.form.get("grade")),
-        section=request.form.get("section")
-    )
-    db.session.add(new_student)
-    db.session.commit()
-    return redirect(url_for('list_students'))
-
-@app.route('/delete/<int:id>')
-def delete_student(id):
-    student = Student.query.get_or_404(id)
-    db.session.delete(student)
-    db.session.commit()
-    return redirect(url_for('list_students'))
-
-@app.route('/summary')
-def summary():
-    all_students = Student.query.all()
-    if not all_students:
-        return jsonify({"message": "No data found"}), 404
-    grades = [s.grade for s in all_students]
-    avg = sum(grades) / len(grades)
-    return jsonify({
-        "school": "NISU Lemery Campus",
-        "total_enrolled": len(all_students),
-        "class_average": round(avg, 2),
-        "passed": len([g for g in grades if g >= 75]),
-        "failed": len([g for g in grades if g < 75])
-    })
-
-if __name__ == '__main__':
-    app.run(debug=True)
